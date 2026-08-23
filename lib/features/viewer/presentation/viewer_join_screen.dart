@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
@@ -13,26 +12,26 @@ class ViewerJoinScreen extends ConsumerStatefulWidget {
 }
 
 class _ViewerJoinScreenState extends ConsumerState<ViewerJoinScreen> {
-  final TextEditingController _codeController = TextEditingController();
+  final TextEditingController _ipController = TextEditingController();
 
   @override
   void dispose() {
-    _codeController.dispose();
+    _ipController.dispose();
     super.dispose();
   }
 
   void _onJoinPressed() {
-    final code = _codeController.text.trim();
-    if (code.length < 6) {
+    final ip = _ipController.text.trim();
+    if (ip.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please enter a 6-digit pairing PIN code.'),
+          content: Text('Please enter Host IP address or scan QR code.'),
           backgroundColor: AppTheme.statusWarning,
         ),
       );
       return;
     }
-    ref.read(viewerProvider.notifier).joinSession(code);
+    ref.read(viewerProvider.notifier).joinSession(ip);
     context.push('/viewer/stream');
   }
 
@@ -54,7 +53,7 @@ class _ViewerJoinScreenState extends ConsumerState<ViewerJoinScreen> {
               const Icon(Icons.display_settings, size: 70, color: AppTheme.primaryCyan),
               const SizedBox(height: 16),
               const Text(
-                'Enter Host Pairing Code',
+                'Connect to Host Device',
                 style: TextStyle(
                   color: AppTheme.textBright,
                   fontSize: 22,
@@ -64,28 +63,27 @@ class _ViewerJoinScreenState extends ConsumerState<ViewerJoinScreen> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Enter the 6-digit code shown on the host phone or scan its QR code to begin live mirroring.',
+                'Enter the Host IP address shown on the host phone or scan its QR code to begin live P2P mirroring.',
                 style: TextStyle(color: AppTheme.textMuted, fontSize: 14),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 32),
 
-              // PIN Code Input Field
+              // Host IP Input Field
               TextField(
-                controller: _codeController,
-                keyboardType: TextInputType.number,
+                controller: _ipController,
+                keyboardType: TextInputType.url,
                 textAlign: TextAlign.center,
-                maxLength: 6,
                 style: const TextStyle(
-                  fontSize: 32,
+                  fontSize: 22,
                   fontWeight: FontWeight.bold,
-                  letterSpacing: 8,
+                  letterSpacing: 2,
                   color: AppTheme.primaryCyan,
                 ),
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration: const InputDecoration(
-                  hintText: '000000',
-                  counterText: '',
+                  labelText: 'Host IP Address',
+                  hintText: 'e.g. 192.168.1.42',
+                  prefixIcon: Icon(Icons.wifi, color: AppTheme.primaryCyan),
                 ),
               ),
 
@@ -123,9 +121,9 @@ class _ViewerJoinScreenState extends ConsumerState<ViewerJoinScreen> {
               // Scan QR Code Button
               OutlinedButton.icon(
                 onPressed: () async {
-                  final String? scannedCode = await context.push<String>('/viewer/qr_scanner');
-                  if (scannedCode != null && scannedCode.isNotEmpty) {
-                    _codeController.text = scannedCode;
+                  final String? scannedTarget = await context.push<String>('/viewer/qr_scanner');
+                  if (scannedTarget != null && scannedTarget.isNotEmpty) {
+                    _ipController.text = scannedTarget;
                     _onJoinPressed();
                   }
                 },

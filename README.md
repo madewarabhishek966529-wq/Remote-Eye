@@ -1,37 +1,34 @@
 # RemoteEye 👁️📱
 
-**RemoteEye** is a production-quality, open-source Flutter application that mirrors one Android phone's screen to another Android phone in real time over the internet — **without requiring both devices to be on the same Wi-Fi network**.
-
-Peer-to-peer (P2P) streaming works across different networks (Mobile Data 4G/5G <-> Wi-Fi, separate Wi-Fi routers, carrier-grade NAT, etc.) using **WebRTC** and **Firebase Realtime Database** for signaling.
+**RemoteEye** is a production-quality, 100% open-source & cloud-free Flutter application that mirrors one Android phone's screen to another Android phone in real time with optional remote touch control — **without requiring Firebase, AWS, or any third-party cloud platforms**.
 
 ---
 
 ## 🌟 Key Features
 
-1. **Internet-Wide P2P Screen Mirroring**: Direct low-latency video streaming between Android devices via WebRTC with automatic STUN/TURN fallback.
-2. **6-Digit PIN & QR Code Pairing**: Instant pairing UX using 6-digit numeric codes or QR code scanning (`qr_flutter` + `mobile_scanner`).
-3. **Optional Remote Touch Control**: Viewers can tap, double-tap, long-press, and swipe on the mirrored screen, plus trigger Android navigation actions (Back, Home, Recent Apps).
-4. **No Root Required**: Touch control is executed natively on the host device using Android's `AccessibilityService` (`dispatchGesture`).
-5. **Security First**: Remote touch control is **OFF by default** and requires explicit permission from the Host.
-6. **Automatic Signaling Teardown**: Firebase Realtime Database signaling nodes are automatically deleted once the WebRTC peer connection is established.
+1. **100% Standalone & Serverless**: No Firebase, no backend cloud servers, no account registration.
+2. **Embedded WebSocket Signaling**: The Host phone acts as its own embedded signaling server (`LocalSignalingService`) using Dart's native `HttpServer`.
+3. **P2P Screen Mirroring**: Direct low-latency WebRTC video streaming between Android devices with optional STUN/TURN fallback.
+4. **Instant QR Code & IP Pairing**: Pairing UX via Host IP address or instant QR code scanning (`qr_flutter` + `mobile_scanner`).
+5. **Optional Remote Touch Control**: Viewers can tap, double-tap, long-press, and swipe on the mirrored screen, plus trigger Android navigation actions (Back, Home, Recent Apps).
+6. **No Root Required**: Touch control is executed natively on the host device using Android's `AccessibilityService` (`dispatchGesture`).
+7. **Security First**: Remote touch control is **OFF by default** and requires explicit Host consent.
 
 ---
 
 ## 🏗️ Architecture & Tech Stack
 
-The application follows **Clean Architecture (Feature-First)**:
-
 ```
 lib/
 ├── core/
 │   ├── constants/        # RtcConfig (STUN/TURN), AppConstants
-│   ├── network/          # FirebaseSignalingService (SDP Offer/Answer & ICE Exchange)
-│   ├── theme/            # AppTheme (Modern dark tech aesthetic)
+│   ├── network/          # LocalSignalingService (Embedded WebSocket Server & Client)
+│   ├── theme/            # AppTheme (Futuristic cyan tech theme)
 │   ├── utils/            # CodeGenerator, Logger
 │   └── widgets/          # BrandLogo, StatusBadge
 └── features/
     ├── accessibility/    # Native MethodChannel to Kotlin AccessibilityService
-    ├── settings/         # SharedPreferences settings & TURN config UI
+    ├── settings/         # SharedPreferences settings & STUN/TURN config UI
     ├── host/             # MediaProjection screen capture & WebRTC Host repository
     ├── viewer/           # RTCVideoRenderer, QR scanner, & DataChannel touch relay
     └── home/             # Main dashboard menu
@@ -40,94 +37,36 @@ lib/
 * **State Management**: [Riverpod](https://pub.dev/packages/flutter_riverpod)
 * **Navigation**: [GoRouter](https://pub.dev/packages/go_router)
 * **WebRTC**: [flutter_webrtc](https://pub.dev/packages/flutter_webrtc)
-* **Signaling**: [firebase_database](https://pub.dev/packages/firebase_database)
+* **Signaling**: Embedded WebSocket Server (`dart:io` `HttpServer` + `WebSocketTransformer`)
 
 ---
 
-## 🔥 Firebase Setup Steps (Signaling Channel)
+## 🌐 How Standalone Signaling Works
 
-RemoteEye uses Firebase Realtime Database as a serverless signaling channel. No custom backend server required!
-
-1. Go to the [Firebase Console](https://console.firebase.google.com/) and click **Add Project**.
-2. Add an **Android Application** to your Firebase project:
-   * **Package Name**: `com.example.remote_eye`
-3. Download `google-services.json` and place it in the `android/app/` directory of this project.
-4. In the Firebase Console, open **Build -> Realtime Database**:
-   * Click **Create Database**.
-   * Choose a database location and select **Start in Test Mode**.
-   * Update Database Rules to allow sessions read/write:
-     ```json
-     {
-       "rules": {
-         "sessions": {
-           ".read": true,
-           ".write": true
-         }
-       }
-     }
-     ```
-
----
-
-## 🌐 STUN / TURN Server Configuration
-
-Direct peer-to-peer (P2P) connections using **STUN** work seamlessly when both devices have open NATs. However, when one or both devices are behind strict carrier-grade NATs (CGNAT) or mobile networks, a **TURN (Traversal Using Relays around NAT)** server is required to relay the WebRTC media stream.
-
-### Default STUN Configuration
-The app includes Google's free public STUN server pre-configured:
-```
-stun:stun.l.google.com:19302
-```
-
-### Plugging in Your TURN Server Credentials
-You can configure TURN credentials in two ways:
-
-#### Option A: In Code (`lib/core/constants/rtc_config.dart`)
-Edit `RtcConfig.getIceServersConfig()`:
-```dart
-iceServers.add({
-  'urls': 'turn:your-turn-server.com:3478',
-  'username': 'your_username',
-  'credential': 'your_password',
-});
-```
-
-#### Option B: In-App Settings Screen
-Open the **RemoteEye Settings** screen within the running application to dynamically enter and save TURN server credentials. Free TURN providers like [Metered.ca](https://www.metered.ca/tools/open-relay/) or self-hosted [Coturn](https://github.com/coturn/coturn) work out of the box.
+1. **Host Mode**: When the Host taps **Share My Screen**, RemoteEye starts a lightweight local WebSocket server on port `8080` (e.g. `ws://192.168.1.42:8080`).
+2. **Pairing**: The Host displays its local IP address and a QR code containing `remoteeye://join/192.168.1.42:8080`.
+3. **Viewer Connects**: The Viewer scans the QR code or types the Host IP. The Viewer establishes a direct WebSocket link to exchange WebRTC SDP Offer/Answer and ICE candidates.
+4. **Auto Teardown**: Once the WebRTC peer connection status reaches `connected`, the embedded WebSocket server automatically shuts down!
 
 ---
 
 ## 📲 How to Test Across Two Physical Android Devices
 
-### Prerequisites
-* 2 Android physical devices running Android 7.0+ (API 24+).
-* One device connected to **Wi-Fi**, and the other connected to **Mobile Data (4G/5G)** to verify cross-network performance.
-
 ### Host Device Setup (Phone A)
 1. Open RemoteEye on Phone A and tap **Share My Screen**.
 2. Grant Android's **Screen Capture (MediaProjection)** consent prompt.
-3. A large **6-digit PIN** (e.g. `839 102`) and a **QR Code** will be displayed.
-4. *(Optional for Remote Control)*: Toggle **Allow Remote Control** ON. Tap "Open Settings" to enable the **RemoteEye Gesture Controller** under Android Accessibility Settings.
+3. Phone A will display its **Host IP Address** and **QR Code**.
+4. *(Optional for Remote Control)*: Toggle **Allow Remote Control** ON. Enable the **RemoteEye Gesture Controller** under Android Accessibility Settings.
 
 ### Viewer Device Setup (Phone B)
 1. Open RemoteEye on Phone B and tap **View Another Screen**.
-2. Either enter Phone A's 6-digit PIN or tap **Scan Host QR Code** to scan Phone A's screen.
+2. Either enter Phone A's Host IP address or tap **Scan Host QR Code** to scan Phone A's screen.
 3. Tap **Connect to Host Screen**.
 
 ### Live Streaming & Touch Control
-* Within 1–3 seconds, Phone A's screen will appear live full-screen on Phone B with real-time latency stats (e.g. `35 ms`).
-* If Remote Control was enabled on Phone A, tap or swipe on Phone B's screen — touch events are transmitted over `RTCDataChannel` and executed live on Phone A!
-* Use the bottom action bar on Phone B to send Android system navigation commands (**Back**, **Home**, **Recent Apps**).
-
----
-
-## 🛠️ Android Permissions & Native Services
-
-Declared in `android/app/src/main/AndroidManifest.xml`:
-* `INTERNET` & `ACCESS_NETWORK_STATE`: WebRTC networking.
-* `FOREGROUND_SERVICE` & `FOREGROUND_SERVICE_MEDIA_PROJECTION`: Required by Android for background screen capture.
-* `CAMERA`: QR code scanner.
-* `BIND_ACCESSIBILITY_SERVICE`: Native Kotlin service (`RemoteControlAccessibilityService.kt`) executing `dispatchGesture` for touch input relay.
+* Within 1–2 seconds, Phone A's screen appears live on Phone B with real-time latency stats (e.g. `30 ms`).
+* Tap or swipe on Phone B's screen — touch events are transmitted over `RTCDataChannel` and executed live on Phone A!
+* Use the bottom action bar on Phone B to trigger Android navigation actions (**Back**, **Home**, **Recent Apps**).
 
 ---
 

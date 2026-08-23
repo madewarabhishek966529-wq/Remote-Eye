@@ -3,14 +3,14 @@ import 'dart:convert';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/rtc_config.dart';
-import '../../../core/network/firebase_signaling_service.dart';
+import '../../../core/network/local_signaling_service.dart';
 import '../../../core/utils/logger.dart';
 import '../../accessibility/data/accessibility_native_service.dart';
 
 class HostWebRtcRepository {
   static const String _tag = 'HostWebRTC';
 
-  final FirebaseSignalingService _signalingService;
+  final LocalSignalingService _signalingService;
   final AccessibilityNativeService _accessibilityService = AccessibilityNativeService();
 
   RTCPeerConnection? _peerConnection;
@@ -52,19 +52,18 @@ class HostWebRtcRepository {
     }
   }
 
-  /// Initializes RTCPeerConnection and SDP offer negotiation for session
+  /// Initializes RTCPeerConnection & embedded WebSocket signaling server
   Future<void> initializeHostSession({
-    required String sessionCode,
     required bool allowRemoteControl,
     String? turnUrl,
     String? turnUsername,
     String? turnCredential,
   }) async {
     try {
-      AppLogger.i(_tag, 'Initializing host WebRTC session for code: $sessionCode');
+      AppLogger.i(_tag, 'Initializing host WebRTC session with embedded local signaling server');
 
-      // 1. Create Firebase signaling session node
-      await _signalingService.createSession(sessionCode);
+      // 1. Start embedded local WebSocket signaling server
+      await _signalingService.startHostServer();
 
       // 2. Create RTCPeerConnection
       final rtcConfig = RtcConfig.getIceServersConfig(
@@ -74,7 +73,7 @@ class HostWebRtcRepository {
       );
 
       _peerConnection = await createPeerConnection(rtcConfig);
-      AppLogger.i(_tag, 'PeerConnection created successfully');
+      AppLogger.i(_tag, 'Host PeerConnection created successfully');
 
       // 3. Add Screen Capture tracks to PeerConnection
       if (_localDisplayStream != null) {
@@ -103,21 +102,21 @@ class HostWebRtcRepository {
       // 5. ICE Candidate Listener
       _peerConnection!.onIceCandidate = (candidate) {
         if (candidate.candidate != null) {
-          _signalingService.addHostCandidate(sessionCode, candidate.toMap());
+          _signalingService.sendHostCandidate(candidate.toMap());
         }
       };
 
       // 6. ICE Connection State Listener
       _peerConnection!.onIceConnectionState = (state) {
-        AppLogger.i(_tag, 'ICE Connection State: $state');
+        AppLogger.i(_tag, 'Host ICE Connection State: $state');
         if (onIceConnectionStateChange != null) {
           onIceConnectionStateChange!(state);
         }
 
-        // Requirement #1: Clean up signaling data once P2P connection is confirmed connected
+        // Clean up embedded signaling server once P2P connection is established
         if (state == RTCIceConnectionState.RTCIceConnectionStateConnected) {
-          AppLogger.i(_tag, 'P2P Connection Established! Cleaning up signaling node in Firebase...');
-          _signalingService.deleteSession(sessionCode);
+          AppLogger.i(_tag, 'P2P Connection Established! Closing embedded WebSocket signaling server...');
+          _signalingService.closeHostServer();
         }
       };
 
@@ -125,13 +124,10 @@ class HostWebRtcRepository {
       final offer = await _peerConnection!.createOffer(RtcConfig.hostOfferConstraints);
       await _peerConnection!.setLocalDescription(offer);
 
-      // 8. Write Offer to Firebase
-      await _signalingService.setHostOffer(sessionCode, offer.toMap());
-
-      // 9. Listen for Viewer SDP Answer
-      _answerSub = _signalingService.listenForAnswer(sessionCode).listen((answerMap) async {
-        if (answerMap != null && _peerConnection != null) {
-          AppLogger.i(_tag, 'Received Viewer Answer from Firebase');
+      // 8. Listen for Viewer SDP Answer
+      _answerSub = _signalingService.onAnswerReceived.listen((answerMap) async {
+        if (_peerConnection != null) {
+          AppLogger.i(_tag, 'Host received Viewer Answer via WebSocket signaling');
           final description = RTCSessionDescription(
             answerMap['sdp'],
             answerMap['type'],
@@ -140,8 +136,8 @@ class HostWebRtcRepository {
         }
       });
 
-      // 10. Listen for Viewer ICE Candidates
-      _viewerCandidatesSub = _signalingService.listenForViewerCandidates(sessionCode).listen((candMap) async {
+      // 9. Listen for Viewer ICE Candidates
+      _viewerCandidatesSub = _signalingService.onViewerCandidateReceived.listen((candMap) async {
         if (_peerConnection != null) {
           final candidate = RTCIceCandidate(
             candMap['candidate'],
@@ -151,6 +147,9 @@ class HostWebRtcRepository {
           await _peerConnection!.addCandidate(candidate);
         }
       });
+
+      // 10. Send SDP Offer over embedded WebSocket
+      await _signalingService.sendHostOffer(offer.toMap());
     } catch (e, st) {
       AppLogger.e(_tag, 'Error initializing host session', e, st);
       if (onError != null) onError!(e.toString());
@@ -221,15 +220,13 @@ class HostWebRtcRepository {
     };
   }
 
-  /// Cleanly closes media streams, peer connections, and signaling subscriptions
-  Future<void> disposeHostSession(String? sessionCode) async {
+  /// Cleanly closes media streams, peer connections, and embedded signaling server
+  Future<void> disposeHostSession() async {
     AppLogger.i(_tag, 'Disposing host session...');
     await _answerSub?.cancel();
     await _viewerCandidatesSub?.cancel();
 
-    if (sessionCode != null && sessionCode.isNotEmpty) {
-      await _signalingService.deleteSession(sessionCode);
-    }
+    await _signalingService.closeHostServer();
 
     await _dataChannel?.close();
     await _peerConnection?.close();

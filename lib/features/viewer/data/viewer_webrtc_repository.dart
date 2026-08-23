@@ -3,13 +3,13 @@ import 'dart:convert';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/rtc_config.dart';
-import '../../../core/network/firebase_signaling_service.dart';
+import '../../../core/network/local_signaling_service.dart';
 import '../../../core/utils/logger.dart';
 
 class ViewerWebRtcRepository {
   static const String _tag = 'ViewerWebRTC';
 
-  final FirebaseSignalingService _signalingService;
+  final LocalSignalingService _signalingService;
   final RTCVideoRenderer remoteRenderer = RTCVideoRenderer();
 
   RTCPeerConnection? _peerConnection;
@@ -31,15 +31,15 @@ class ViewerWebRtcRepository {
     await remoteRenderer.initialize();
   }
 
-  /// Connects to a Host session using the 6-digit session PIN code
+  /// Connects to Host's embedded WebSocket signaling server using Host IP address
   Future<void> joinSession({
-    required String sessionCode,
+    required String hostIpAddress,
     String? turnUrl,
     String? turnUsername,
     String? turnCredential,
   }) async {
     try {
-      AppLogger.i(_tag, 'Joining viewer session for code: $sessionCode');
+      AppLogger.i(_tag, 'Joining viewer session for Host IP: $hostIpAddress');
 
       final rtcConfig = RtcConfig.getIceServersConfig(
         customTurnUrl: turnUrl,
@@ -75,14 +75,17 @@ class ViewerWebRtcRepository {
         _dataChannel = channel;
       };
 
-      // 3. ICE Candidate Listener
+      // 3. Connect to Host's embedded WebSocket signaling server
+      await _signalingService.connectToHost(hostIp: hostIpAddress);
+
+      // 4. ICE Candidate Listener
       _peerConnection!.onIceCandidate = (candidate) {
         if (candidate.candidate != null) {
-          _signalingService.addViewerCandidate(sessionCode, candidate.toMap());
+          _signalingService.sendViewerCandidate(candidate.toMap());
         }
       };
 
-      // 4. ICE Connection State Listener
+      // 5. ICE Connection State Listener
       _peerConnection!.onIceConnectionState = (state) {
         AppLogger.i(_tag, 'Viewer ICE Connection State: $state');
         if (onIceConnectionStateChange != null) {
@@ -94,10 +97,10 @@ class ViewerWebRtcRepository {
         }
       };
 
-      // 5. Listen for Host SDP Offer
-      _offerSub = _signalingService.listenForOffer(sessionCode).listen((offerMap) async {
-        if (offerMap != null && _peerConnection != null) {
-          AppLogger.i(_tag, 'Received Host Offer from Firebase');
+      // 6. Listen for Host SDP Offer over WebSocket
+      _offerSub = _signalingService.onOfferReceived.listen((offerMap) async {
+        if (_peerConnection != null) {
+          AppLogger.i(_tag, 'Viewer received Host SDP Offer via WebSocket signaling');
           final description = RTCSessionDescription(
             offerMap['sdp'],
             offerMap['type'],
@@ -109,13 +112,13 @@ class ViewerWebRtcRepository {
           final answer = await _peerConnection!.createAnswer(RtcConfig.viewerAnswerConstraints);
           await _peerConnection!.setLocalDescription(answer);
 
-          // Write Answer to Firebase
-          await _signalingService.setViewerAnswer(sessionCode, answer.toMap());
+          // Send Answer over WebSocket
+          await _signalingService.sendViewerAnswer(answer.toMap());
         }
       });
 
-      // 6. Listen for Host ICE Candidates
-      _hostCandidatesSub = _signalingService.listenForHostCandidates(sessionCode).listen((candMap) async {
+      // 7. Listen for Host ICE Candidates over WebSocket
+      _hostCandidatesSub = _signalingService.onHostCandidateReceived.listen((candMap) async {
         if (_peerConnection != null) {
           final candidate = RTCIceCandidate(
             candMap['candidate'],
@@ -202,7 +205,7 @@ class ViewerWebRtcRepository {
       if (_peerConnection == null) return;
       try {
         final stats = await _peerConnection!.getStats();
-        int latency = 35; // Default low latency estimate
+        int latency = 30; // Low latency estimate
         double fps = 30.0;
         double bitrate = 1200.0;
 
@@ -232,6 +235,7 @@ class ViewerWebRtcRepository {
     _statsTimer?.cancel();
     await _offerSub?.cancel();
     await _hostCandidatesSub?.cancel();
+    await _signalingService.disconnectViewer();
     await _dataChannel?.close();
     await _peerConnection?.close();
     _peerConnection = null;

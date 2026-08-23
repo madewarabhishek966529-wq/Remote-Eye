@@ -55,13 +55,13 @@ class _HostPairingScreenState extends ConsumerState<HostPairingScreen> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               StatusBadge(status: hostState.status),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
               if (hostState.status == ConnectionStatus.creating) ...[
                 const CircularProgressIndicator(color: AppTheme.primaryCyan),
                 const SizedBox(height: 16),
                 const Text(
-                  'Starting MediaProjection & Session...',
+                  'Starting Embedded Local Signaling Server...',
                   style: TextStyle(color: AppTheme.textMuted),
                 ),
               ] else if (hostState.errorMessage != null) ...[
@@ -90,29 +90,56 @@ class _HostPairingScreenState extends ConsumerState<HostPairingScreen> {
                   ),
                 ),
               ] else ...[
+                // Host IP Address display pill
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.darkSurface,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppTheme.primaryCyan.withValues(alpha: 0.2)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.wifi, color: AppTheme.primaryCyan, size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Host IP: ${hostState.hostIp}',
+                        style: const TextStyle(
+                          color: AppTheme.textBright,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
                 const Text(
                   'Pairing PIN Code',
                   style: TextStyle(
                     color: AppTheme.textMuted,
-                    fontSize: 14,
+                    fontSize: 13,
                     fontWeight: FontWeight.w500,
                     letterSpacing: 1,
                   ),
                 ),
                 const SizedBox(height: 8),
+
                 InkWell(
                   onTap: () {
-                    Clipboard.setData(ClipboardData(text: hostState.sessionCode));
+                    Clipboard.setData(ClipboardData(text: hostState.hostIp));
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('Pairing code copied to clipboard!'),
+                        content: Text('Host IP copied to clipboard!'),
                         duration: Duration(seconds: 2),
                       ),
                     );
                   },
                   borderRadius: BorderRadius.circular(16),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
                     decoration: BoxDecoration(
                       color: AppTheme.darkSurface,
                       borderRadius: BorderRadius.circular(16),
@@ -125,18 +152,18 @@ class _HostPairingScreenState extends ConsumerState<HostPairingScreen> {
                           formattedCode,
                           style: const TextStyle(
                             color: AppTheme.primaryCyan,
-                            fontSize: 38,
+                            fontSize: 36,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 6,
                           ),
                         ),
                         const SizedBox(width: 12),
-                        const Icon(Icons.copy, color: AppTheme.primaryCyan, size: 24),
+                        const Icon(Icons.copy, color: AppTheme.primaryCyan, size: 22),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 24),
 
                 // QR Code Container
                 Container(
@@ -153,19 +180,19 @@ class _HostPairingScreenState extends ConsumerState<HostPairingScreen> {
                     ],
                   ),
                   child: QrImageView(
-                    data: 'remoteeye://join/${hostState.sessionCode}',
+                    data: hostState.qrData.isNotEmpty ? hostState.qrData : 'remoteeye://join/${hostState.hostIp}:8080',
                     version: QrVersions.auto,
-                    size: 200.0,
+                    size: 190.0,
                     backgroundColor: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 const Text(
-                  'Scan with RemoteEye Viewer camera',
+                  'Scan with RemoteEye Viewer camera to join instantly',
                   style: TextStyle(color: AppTheme.textMuted, fontSize: 12),
                 ),
 
-                const SizedBox(height: 32),
+                const SizedBox(height: 24),
 
                 // Security & Remote Control Card
                 Card(

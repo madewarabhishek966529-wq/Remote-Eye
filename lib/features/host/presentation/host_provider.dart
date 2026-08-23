@@ -1,18 +1,20 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
-import '../../../core/network/firebase_signaling_service.dart';
+import '../../../core/network/local_signaling_service.dart';
 import '../../../core/utils/code_generator.dart';
 import '../../../core/widgets/status_badge.dart';
 import '../../settings/presentation/settings_provider.dart';
 import '../data/host_webrtc_repository.dart';
 import '../domain/host_session_state.dart';
 
-final firebaseSignalingProvider = Provider<FirebaseSignalingService>((ref) {
-  return FirebaseSignalingService();
+final localSignalingProvider = Provider<LocalSignalingService>((ref) {
+  final service = LocalSignalingService();
+  ref.onDispose(() => service.dispose());
+  return service;
 });
 
 final hostWebRtcRepositoryProvider = Provider<HostWebRtcRepository>((ref) {
-  final signalingService = ref.watch(firebaseSignalingProvider);
+  final signalingService = ref.watch(localSignalingProvider);
   return HostWebRtcRepository(signalingService);
 });
 
@@ -25,9 +27,13 @@ class HostNotifier extends StateNotifier<HostSessionState> {
   Future<void> prepareHostSession() async {
     final code = CodeGenerator.generateSessionCode();
     final allowControl = _ref.read(settingsProvider).allowRemoteControl;
+    final localIp = await LocalSignalingService.getLocalIpAddress();
+    final qrEndpoint = 'remoteeye://join/$localIp:8080';
 
     state = state.copyWith(
+      hostIp: localIp,
       sessionCode: code,
+      qrData: qrEndpoint,
       status: ConnectionStatus.creating,
       isRemoteControlAllowed: allowControl,
     );
@@ -62,10 +68,9 @@ class HostNotifier extends StateNotifier<HostSessionState> {
         }
       };
 
-      // 3. Initialize WebRTC peer connection & signaling
+      // 3. Initialize WebRTC peer connection & embedded signaling server
       final settings = _ref.read(settingsProvider);
       await _repository.initializeHostSession(
-        sessionCode: code,
         allowRemoteControl: allowControl,
         turnUrl: settings.turnUrl,
         turnUsername: settings.turnUsername,
@@ -85,13 +90,13 @@ class HostNotifier extends StateNotifier<HostSessionState> {
   }
 
   Future<void> endSession() async {
-    await _repository.disposeHostSession(state.sessionCode);
+    await _repository.disposeHostSession();
     state = HostSessionState.initial();
   }
 
   @override
   void dispose() {
-    _repository.disposeHostSession(state.sessionCode);
+    _repository.disposeHostSession();
     super.dispose();
   }
 }

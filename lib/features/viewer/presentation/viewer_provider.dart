@@ -7,7 +7,7 @@ import '../data/viewer_webrtc_repository.dart';
 import '../domain/viewer_session_state.dart';
 
 final viewerWebRtcRepositoryProvider = Provider<ViewerWebRtcRepository>((ref) {
-  final signalingService = ref.watch(firebaseSignalingProvider);
+  final signalingService = ref.watch(localSignalingProvider);
   return ViewerWebRtcRepository(signalingService);
 });
 
@@ -17,18 +17,25 @@ class ViewerNotifier extends StateNotifier<ViewerSessionState> {
 
   ViewerNotifier(this._repository, this._ref) : super(ViewerSessionState.initial());
 
-  Future<void> joinSession(String code) async {
-    final cleanCode = code.replaceAll(' ', '').trim();
-    if (cleanCode.length != 6) {
+  Future<void> joinSession(String hostTarget) async {
+    String cleanTarget = hostTarget.trim();
+    if (cleanTarget.contains('remoteeye://join/')) {
+      cleanTarget = cleanTarget.replaceAll('remoteeye://join/', '').trim();
+    }
+    if (cleanTarget.contains(':')) {
+      cleanTarget = cleanTarget.split(':')[0];
+    }
+
+    if (cleanTarget.isEmpty) {
       state = state.copyWith(
         status: ConnectionStatus.error,
-        errorMessage: 'Please enter a valid 6-digit session code.',
+        errorMessage: 'Please enter a valid Host IP address or scan QR code.',
       );
       return;
     }
 
     state = state.copyWith(
-      sessionCode: cleanCode,
+      sessionCode: cleanTarget,
       status: ConnectionStatus.connecting,
       errorMessage: null,
     );
@@ -67,7 +74,7 @@ class ViewerNotifier extends StateNotifier<ViewerSessionState> {
 
       final settings = _ref.read(settingsProvider);
       await _repository.joinSession(
-        sessionCode: cleanCode,
+        hostIpAddress: cleanTarget,
         turnUrl: settings.turnUrl,
         turnUsername: settings.turnUsername,
         turnCredential: settings.turnCredential,
@@ -75,7 +82,7 @@ class ViewerNotifier extends StateNotifier<ViewerSessionState> {
     } catch (e) {
       state = state.copyWith(
         status: ConnectionStatus.error,
-        errorMessage: 'Failed to join session: ${e.toString()}',
+        errorMessage: 'Failed to connect to Host at $cleanTarget: ${e.toString()}',
       );
     }
   }
