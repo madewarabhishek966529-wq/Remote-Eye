@@ -1,30 +1,25 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:remote_eye/main.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:remote_eye/app.dart';
+import 'package:remote_eye/features/settings/data/settings_repository.dart';
+import 'package:remote_eye/features/settings/presentation/settings_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('RemoteEye app smoke test', (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final settingsRepo = SettingsRepository();
+    await settingsRepo.init();
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          settingsRepositoryProvider.overrideWithValue(settingsRepo),
+        ],
+        child: const RemoteEyeApp(),
+      ),
+    );
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('RemoteEye'), findsOneWidget);
   });
 }

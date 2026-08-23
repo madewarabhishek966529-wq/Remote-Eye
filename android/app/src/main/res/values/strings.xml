@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">RemoteEye</string>
+    <string name="accessibility_service_label">RemoteEye Gesture Controller</string>
+    <string name="accessibility_service_description">Allows RemoteEye to simulate touch gestures (taps and swipes) sent from a remote viewer device during an active screen sharing session.</string>
+</resources>
