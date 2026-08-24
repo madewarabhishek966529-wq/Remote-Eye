@@ -1,0 +1,45 @@
+﻿Running Gradle task 'assembleDebug'...                          
+Applying the Kotlin Android Plugin (KGP) was unsuccessful. KGP was not found on the classpath.
+If your project uses Kotlin, ensure KGP is declared in the root plugins block.
+For more details check: https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin
+flutter : 
+At line:1 char:1
++ flutter build apk --debug 2>&1 | Out-File -FilePath "build_log.txt" - ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+FAILURE: Build failed with an exception.
+
+* Where:
+Build file 
+'C:\Users\madew\AppData\Local\Pub\Cache\hosted\pub.dev\flutter_webrtc-0.12.12+hotfix.1\android\build.gradle' line: 26
+
+* What went wrong:
+A problem occurred evaluating project ':flutter_webrtc'.
+> Failed to apply plugin 'kotlin-android'.
+   > Failed to apply plugin 'org.jetbrains.kotlin.android'
+     The 'org.jetbrains.kotlin.android' plugin is no longer required for Kotlin support since AGP 9.0.
+     Solution: Remove the 'org.jetbrains.kotlin.android' plugin from this project's build file: 
+..\..\..\..\Users\madew\AppData\Local\Pub\Cache\hosted\pub.dev\flutter_webrtc-0.12.12+hotfix.1\android\build.gradle.
+     See https://kotl.in/gradle/agp-built-in-kotlin for more details.
+      > java.lang.Throwable (no error message)
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to generate a Build Scan (Powered by Develocity).
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 1s
+Running Gradle task 'assembleDebug'...                           2,020ms
+
+┌─ Flutter Fix ────────────────────────────────────────────────────────────────┐
+│ [!] Starting AGP 9+, the default has become built-in Kotlin.                 │
+│ This results in a build failure when applying the kotlin-android plugin.     │
+│ To resolve this, migrate to built-in Kotlin.                                 │
+│                                                                              │
+│ For instructions on how to migrate, see:                                     │
+│ https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin │
+└──────────────────────────────────────────────────────────────────────────────┘
+Gradle task assembleDebug failed with exit code 1

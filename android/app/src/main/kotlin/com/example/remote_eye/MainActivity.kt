@@ -6,12 +6,15 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
+private const val CHANNEL = "com.example.remote_eye/accessibility"
+private const val SHARE_CHANNEL = "com.example.remote_eye/share"
+
 class MainActivity : FlutterActivity() {
-    private const val CHANNEL = "com.example.remote_eye/accessibility"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
+        // ── Accessibility / gesture injection channel ──────────────────────
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             val service = RemoteControlAccessibilityService.instance
 
@@ -91,6 +94,28 @@ class MainActivity : FlutterActivity() {
                 else -> {
                     result.notImplemented()
                 }
+            }
+        }
+
+        // ── Share sheet channel ────────────────────────────────────────────
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SHARE_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "shareText" -> {
+                    try {
+                        val text = call.argument<String>("text") ?: ""
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, text)
+                            putExtra(Intent.EXTRA_SUBJECT, "RemoteEye Session Info")
+                        }
+                        startActivity(Intent.createChooser(shareIntent, "Share via"))
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("SHARE_ERROR", e.localizedMessage, null)
+                    }
+                }
+
+                else -> result.notImplemented()
             }
         }
     }

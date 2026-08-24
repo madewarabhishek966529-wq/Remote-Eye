@@ -6,7 +6,10 @@ plugins {
 
 android {
     namespace = "com.example.remote_eye"
-    compileSdk = flutter.compileSdkVersion
+    // Explicitly set to 36: flutter_webrtc and mobile_scanner depend on
+    // AndroidX libraries (fragment 1.7.1, core-ktx 1.13.1, activity 1.8.1, etc.)
+    // that require compileSdk >= 34. Using 36 for forward compatibility.
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -15,12 +18,11 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
+        // TODO: Replace with your developer namespace, e.g. com.yourname.remoteeye
         applicationId = "com.example.remote_eye"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        // minSdk 24 (Android 7.0) is required by flutter_webrtc for WebRTC APIs.
+        minSdk = 24
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }

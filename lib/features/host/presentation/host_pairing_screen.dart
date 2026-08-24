@@ -27,6 +27,35 @@ class _HostPairingScreenState extends ConsumerState<HostPairingScreen> {
     });
   }
 
+  void _copyToClipboard(String text, String label) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white, size: 18),
+            const SizedBox(width: 8),
+            Text('$label copied!'),
+          ],
+        ),
+        backgroundColor: AppTheme.primaryCyan.withValues(alpha: 0.85),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  void _shareText(String text) {
+    // Use MethodChannel to call Android's share sheet
+    const platform = MethodChannel('com.example.remote_eye/share');
+    platform.invokeMethod('shareText', {'text': text}).catchError((_) {
+      // Fallback: just copy to clipboard
+      _copyToClipboard(text, 'Connection info');
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final hostState = ref.watch(hostProvider);
@@ -50,12 +79,12 @@ class _HostPairingScreenState extends ConsumerState<HostPairingScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.all(20.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               StatusBadge(status: hostState.status),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
               if (hostState.status == ConnectionStatus.creating) ...[
                 const CircularProgressIndicator(color: AppTheme.primaryCyan),
@@ -90,53 +119,167 @@ class _HostPairingScreenState extends ConsumerState<HostPairingScreen> {
                   ),
                 ),
               ] else ...[
-                // Host IP Address display pill
+
+                // ─── HOST IP ADDRESS CARD ─────────────────────────────────
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  width: double.infinity,
                   decoration: BoxDecoration(
-                    color: AppTheme.darkSurface,
+                    gradient: LinearGradient(
+                      colors: [
+                        AppTheme.primaryCyan.withValues(alpha: 0.18),
+                        AppTheme.darkSurface,
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppTheme.primaryCyan.withValues(alpha: 0.2)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.wifi, color: AppTheme.primaryCyan, size: 18),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Host IP: ${hostState.hostIp}',
-                        style: const TextStyle(
-                          color: AppTheme.textBright,
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                        ),
+                    border: Border.all(
+                      color: AppTheme.primaryCyan.withValues(alpha: 0.5),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.primaryCyan.withValues(alpha: 0.12),
+                        blurRadius: 18,
+                        spreadRadius: 2,
                       ),
                     ],
                   ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Label row
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: AppTheme.primaryCyan.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                Icons.wifi_tethering,
+                                color: AppTheme.primaryCyan,
+                                size: 22,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            const Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'HOST IP ADDRESS',
+                                  style: TextStyle(
+                                    color: AppTheme.primaryCyan,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 1.5,
+                                  ),
+                                ),
+                                Text(
+                                  'Share this with the viewer',
+                                  style: TextStyle(
+                                    color: AppTheme.textMuted,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 14),
+
+                        // Big IP address text
+                        Center(
+                          child: SelectableText(
+                            hostState.hostIp.isNotEmpty ? hostState.hostIp : '—',
+                            style: const TextStyle(
+                              color: AppTheme.textBright,
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 2,
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 4),
+                        Center(
+                          child: Text(
+                            'Port: 8080',
+                            style: TextStyle(
+                              color: AppTheme.primaryCyan.withValues(alpha: 0.7),
+                              fontSize: 12,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Action buttons row: Copy IP | Copy Full | Share
+                        Row(
+                          children: [
+                            // Copy IP only
+                            Expanded(
+                              child: _ActionButton(
+                                icon: Icons.copy,
+                                label: 'Copy IP',
+                                onTap: () => _copyToClipboard(
+                                  hostState.hostIp,
+                                  'IP address',
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            // Copy IP:Port
+                            Expanded(
+                              child: _ActionButton(
+                                icon: Icons.link,
+                                label: 'Copy IP:Port',
+                                onTap: () => _copyToClipboard(
+                                  '${hostState.hostIp}:8080',
+                                  'IP:Port',
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            // Share button
+                            Expanded(
+                              child: _ActionButton(
+                                icon: Icons.share,
+                                label: 'Share',
+                                onTap: () => _shareText(
+                                  'RemoteEye Session\nIP: ${hostState.hostIp}\nPort: 8080\nPIN: $formattedCode\n\nScan QR or enter IP in RemoteEye Viewer app.',
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
+
                 const SizedBox(height: 20),
 
+                // ─── PAIRING PIN ──────────────────────────────────────────
                 const Text(
-                  'Pairing PIN Code',
+                  'PAIRING PIN',
                   style: TextStyle(
                     color: AppTheme.textMuted,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 1,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.5,
                   ),
                 ),
                 const SizedBox(height: 8),
 
                 InkWell(
-                  onTap: () {
-                    Clipboard.setData(ClipboardData(text: hostState.hostIp));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Host IP copied to clipboard!'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                  },
+                  onTap: () => _copyToClipboard(hostState.sessionCode, 'PIN code'),
                   borderRadius: BorderRadius.circular(16),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
@@ -163,9 +306,9 @@ class _HostPairingScreenState extends ConsumerState<HostPairingScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
 
-                // QR Code Container
+                // ─── QR CODE ──────────────────────────────────────────────
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -180,21 +323,23 @@ class _HostPairingScreenState extends ConsumerState<HostPairingScreen> {
                     ],
                   ),
                   child: QrImageView(
-                    data: hostState.qrData.isNotEmpty ? hostState.qrData : 'remoteeye://join/${hostState.hostIp}:8080',
+                    data: hostState.qrData.isNotEmpty
+                        ? hostState.qrData
+                        : 'remoteeye://join/${hostState.hostIp}:8080',
                     version: QrVersions.auto,
                     size: 190.0,
                     backgroundColor: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 const Text(
                   'Scan with RemoteEye Viewer camera to join instantly',
                   style: TextStyle(color: AppTheme.textMuted, fontSize: 12),
                 ),
 
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
 
-                // Security & Remote Control Card
+                // ─── REMOTE CONTROL TOGGLE ────────────────────────────────
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
@@ -230,6 +375,55 @@ class _HostPairingScreenState extends ConsumerState<HostPairingScreen> {
                   ),
                 ),
               ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact tappable action button used in the IP address card
+class _ActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _ActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppTheme.darkBackground,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppTheme.primaryCyan.withValues(alpha: 0.3),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: AppTheme.primaryCyan, size: 18),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: AppTheme.textBright,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ],
           ),
         ),
